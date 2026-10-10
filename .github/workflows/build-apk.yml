@@ -1,0 +1,134 @@
+name: Build Web App to Android APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build Web Wrapper APK
+        run: |
+          # التحقق من وجود ملفات HTML الأساسية
+          ls -la
+          
+          # إنشاء هيكل مشروع أندرويد أساسي بسيط ودمج ملفات الويب بداخله
+          mkdir -p android-project/app/src/main/assets/public
+          mkdir -p android-project/app/src/main/java/com/web/app
+          mkdir -p android-project/app/src/main/res/values
+          
+          # نقل ملفات الويب الخاصة بك إلى مجلد الأصول
+          cp -r *.html *.js *.css android-project/app/src/main/assets/public/ 2>/dev/null || :
+          
+          # إنشاء ملف AndroidManifest.xml بسيط
+          cat << 'EOF' > android-project/app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.web.app">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:allowBackup="true"
+                  android:label="WebApp"
+                  android:usesCleartextTraffic="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # إنشاء MainActivity لتشغيل الويب داخل WebView
+          cat << 'EOF' > android-project/app/src/main/java/com/web/app/MainActivity.java
+          package com.web.app;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebSettings;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  WebView myWebView = new WebView(this);
+                  WebSettings webSettings = myWebView.getSettings();
+                  webSettings.setJavaScriptEnabled(true);
+                  webSettings.setDomStorageEnabled(true);
+                  myWebView.setWebViewClient(new WebViewClient());
+                  myWebView.loadUrl("file:///android_asset/public/index.html");
+                  setContentView(myWebView);
+              }
+          }
+          EOF
+
+          # إنشاء ملف build.gradle لتسهيل البناء
+          cat << 'EOF' > android-project/build.gradle
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.0'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+          cat << 'EOF' > android-project/settings.gradle
+          include ':app'
+          EOF
+
+          cat << 'EOF' > android-project/app/build.gradle
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.web.app'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.web.app"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+          }
+          EOF
+
+          echo "sdk.dir=$ANDROID_HOME" > android-project/local.properties
+
+          # بناء التطبيق عبر Gradle
+          cd android-project
+          chmod +x gradlew || gradle wrapper
+          ./gradlew assembleDebug || gradle assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-app-debug
+          path: android-project/app/build/outputs/apk/debug/app-debug.apk
