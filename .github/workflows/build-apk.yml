@@ -1,4 +1,4 @@
-name: Build and Release APK
+name: Build Android APK
 
 on:
   push:
@@ -26,7 +26,6 @@ jobs:
         run: |
           mkdir -p android-project/app/src/main/assets/public
           mkdir -p android-project/app/src/main/java/com/web/app
-          mkdir -p android-project/app/src/main/res/values
           
           cp -r *.html *.js *.css android-project/app/src/main/assets/public/ 2>/dev/null || :
           
@@ -34,13 +33,8 @@ jobs:
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
               package="com.web.app">
               <uses-permission android:name="android.permission.INTERNET" />
-              <application
-                  android:allowBackup="true"
-                  android:label="WebApp"
-                  android:usesCleartextTraffic="true">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
+              <application android:allowBackup="true" android:label="WebApp" android:usesCleartextTraffic="true">
+                  <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -75,20 +69,10 @@ jobs:
 
           cat << 'EOF' > android-project/build.gradle
           buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.1.0'
-              }
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.1.0' }
           }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
+          allprojects { repositories { google(); mavenCentral() } }
           EOF
 
           cat << 'EOF' > android-project/settings.gradle
@@ -96,9 +80,7 @@ jobs:
           EOF
 
           cat << 'EOF' > android-project/app/build.gradle
-          plugins {
-              id 'com.android.application'
-          }
+          plugins { id 'com.android.application' }
           android {
               namespace 'com.web.app'
               compileSdk 34
@@ -118,12 +100,8 @@ jobs:
           chmod +x gradlew || gradle wrapper
           ./gradlew assembleDebug || gradle assembleDebug
 
-      - name: Create Release and Upload APK
-        uses: softprops/action-gh-release@v2
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: android-project/app/build/outputs/apk/debug/app-debug.apk
-          tag_name: v1.0.${{ github.run_number }}
-          name: App Release v1.0.${{ github.run_number }}
-          body: "تحميل أحدث نسخة من تطبيق الويب بصيغة APK."
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: app-release-apk
+          path: android-project/app/build/outputs/apk/debug/app-debug.apk
