@@ -1,4 +1,4 @@
-name: Build Web App to Android APK
+name: Build and Release APK
 
 on:
   push:
@@ -24,18 +24,12 @@ jobs:
 
       - name: Build Web Wrapper APK
         run: |
-          # التحقق من وجود ملفات HTML الأساسية
-          ls -la
-          
-          # إنشاء هيكل مشروع أندرويد أساسي بسيط ودمج ملفات الويب بداخله
           mkdir -p android-project/app/src/main/assets/public
           mkdir -p android-project/app/src/main/java/com/web/app
           mkdir -p android-project/app/src/main/res/values
           
-          # نقل ملفات الويب الخاصة بك إلى مجلد الأصول
           cp -r *.html *.js *.css android-project/app/src/main/assets/public/ 2>/dev/null || :
           
-          # إنشاء ملف AndroidManifest.xml بسيط
           cat << 'EOF' > android-project/app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
               package="com.web.app">
@@ -56,7 +50,6 @@ jobs:
           </manifest>
           EOF
 
-          # إنشاء MainActivity لتشغيل الويب داخل WebView
           cat << 'EOF' > android-project/app/src/main/java/com/web/app/MainActivity.java
           package com.web.app;
           import android.app.Activity;
@@ -80,7 +73,6 @@ jobs:
           }
           EOF
 
-          # إنشاء ملف build.gradle لتسهيل البناء
           cat << 'EOF' > android-project/build.gradle
           buildscript {
               repositories {
@@ -122,13 +114,16 @@ jobs:
 
           echo "sdk.dir=$ANDROID_HOME" > android-project/local.properties
 
-          # بناء التطبيق عبر Gradle
           cd android-project
           chmod +x gradlew || gradle wrapper
           ./gradlew assembleDebug || gradle assembleDebug
 
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
         with:
-          name: my-app-debug
-          path: android-project/app/build/outputs/apk/debug/app-debug.apk
+          files: android-project/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: v1.0.${{ github.run_number }}
+          name: App Release v1.0.${{ github.run_number }}
+          body: "تحميل أحدث نسخة من تطبيق الويب بصيغة APK."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
